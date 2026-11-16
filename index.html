@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0c0f13">
+<title>Allineamento AOM</title>
+<style>
+:root{
+  /* layout: immagine in alto, lettura dal vivo subito sotto, impostazioni ripiegate in fondo */
+  --bg:#0c0f13; --panel:#151a21; --line:#28303b; --text:#e7ecf3; --muted:#8a96a6;
+  --accent:#ffb347; --other:#7fb2ff; --sat:#ff5c5c; --ok:#58cfa0;
+  --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 var(--sans)}
+body{padding:12px 16px 40px}
+h1{font-size:17px;margin:0;font-weight:650;letter-spacing:.01em}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+header .sp{flex:1}
+.chip{font:600 11px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;padding:5px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.chip.live{color:var(--ok);border-color:var(--ok)}
+.chip.sat{color:var(--sat);border-color:var(--sat);visibility:hidden}
+.chip.sat.on{visibility:visible}
+button,select{font:inherit;color:var(--text);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:9px 12px;min-height:40px}
+button{cursor:pointer}
+button:active{transform:translateY(1px)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#1a1205;font-weight:650}
+button.on{border-color:var(--accent);color:var(--accent)}
+button:focus-visible,select:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+main{display:grid;gap:14px;grid-template-columns:minmax(0,1fr)}
+@media (min-width:900px){main{grid-template-columns:minmax(0,1.4fr) minmax(320px,1fr);align-items:start}}
+.col{display:grid;gap:14px;min-width:0}
+.stage{background:#000;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+#view{display:block;max-width:100%;max-height:62vh;width:auto;height:auto;margin:0 auto;touch-action:none}
+.bar-row{display:flex;gap:8px;flex-wrap:wrap}
+.msg{color:var(--muted);font-size:13px;min-height:1.2em;margin:0}
+.msg.warn{color:var(--sat)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.editor{display:none;gap:10px;flex-wrap:wrap;align-items:center}
+.editor.show{display:flex}
+.editor .grp{display:flex;align-items:center;gap:6px}
+.editor label,.field label{color:var(--muted);font-size:13px}
+.step{min-width:40px;padding:9px 0;font-family:var(--mono)}
+#edOrder{font:600 16px var(--mono);min-width:2.4em;text-align:center}
+.head{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.head .lab{color:var(--muted);font-size:13px;display:flex;align-items:center;gap:6px}
+.head select{min-height:32px;padding:3px 8px;font-family:var(--mono)}
+#eff{font:650 56px/1 var(--mono);font-variant-numeric:tabular-nums;color:var(--accent);letter-spacing:-.02em}
+#eff small{font-size:22px;color:var(--muted);font-weight:500;margin-left:4px}
+.peak{margin-left:auto;text-align:right;color:var(--muted);font:13px var(--mono);font-variant-numeric:tabular-nums}
+.peak button{min-height:30px;padding:3px 9px;font-size:12px;margin-top:4px}
+#spark{display:block;width:100%;height:56px;margin:10px 0 12px}
+.rows{display:grid;gap:7px}
+.row{display:grid;grid-template-columns:2.6em 1fr 5.2em 3em;gap:8px;align-items:center;font:14px var(--mono);font-variant-numeric:tabular-nums}
+.row .ord{font-weight:650}
+.row .track{height:14px;background:#0c0f13;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.row .track i{display:block;height:100%;width:0;background:var(--other)}
+.row.t .track i{background:var(--accent)}
+.row.t .ord{color:var(--accent)}
+.row .pct{text-align:right}
+.row .chip{padding:3px 5px;font-size:10px;text-align:center}
+details{background:var(--panel);border:1px solid var(--line);border-radius:10px}
+summary{padding:12px 14px;cursor:pointer;font-weight:600}
+details .in{padding:0 14px 14px;display:grid;gap:12px}
+.field{display:grid;gap:4px}
+.field .val{font:13px var(--mono);color:var(--text);float:right}
+.check{display:flex;align-items:center;gap:8px}
+input[type=range]{width:100%;accent-color:var(--accent);min-height:28px}
+input[type=checkbox]{width:18px;height:18px;accent-color:var(--accent)}
+ol{margin:0;padding-left:1.2em;display:grid;gap:6px;max-width:65ch}
+.note{color:var(--muted);font-size:13px;max-width:65ch;margin:0}
+</style>
+</head>
+<body>
+<header>
+  <h1>Allineamento AOM</h1>
+  <span class="chip" id="srcChip">Demo simulata</span>
+  <span class="sp"></span>
+  <button class="primary" id="btnCam">Avvia camera</button>
+</header>
+
+<main>
+  <div class="col">
+    <div class="stage"><canvas id="view" width="960" height="540"></canvas></div>
+    <div class="bar-row">
+      <button id="btnDetect">Trova spot</button>
+      <button id="btnAdd">Aggiungi regione</button>
+      <button id="btnFlip">Inverti segni</button>
+      <button id="btnClear">Rimuovi tutte</button>
+    </div>
+    <p class="msg" id="stageMsg">Tocca una regione per selezionarla, trascinala per spostarla.</p>
+    <div class="panel editor" id="editor">
+      <div class="grp"><label>Ordine</label>
+        <button class="step" id="edMinus" aria-label="Ordine meno uno">−</button>
+        <span id="edOrder">0</span>
+        <button class="step" id="edPlus" aria-label="Ordine più uno">+</button>
+      </div>
+      <div class="grp" style="flex:1;min-width:160px"><label for="edRadius">Raggio</label>
+        <input type="range" id="edRadius" min="4" max="200" step="1">
+      </div>
+      <button id="edZero">Questo è l'ordine 0</button>
+      <button id="edDel">Elimina</button>
+    </div>
+  </div>
+
+  <div class="col">
+    <section class="panel">
+      <div class="head">
+        <div>
+          <div class="lab">Efficienza ordine
+            <select id="target" aria-label="Ordine da ottimizzare"></select>
+          </div>
+          <div id="eff">—<small>%</small></div>
+        </div>
+        <div class="peak">max <span id="peak">—</span><br>
+          <button id="btnPeak">Azzera max</button>
+          <button id="btnTone">Tono</button>
+        </div>
+      </div>
+      <canvas id="spark" width="600" height="112" aria-label="Efficienza negli ultimi 30 secondi"></canvas>
+      <div class="rows" id="rows"></div>
+      <p class="msg warn" id="satMsg"></p>
+      <p class="note">Percentuali riferite alla somma delle regioni marcate, fondo locale sottratto.</p>
+    </section>
+
+    <details>
+      <summary>Misura</summary>
+      <div class="in">
+        <div class="field"><label for="channel">Canale usato</label>
+          <select id="channel">
+            <option value="sum">R+G+B</option>
+            <option value="r">Solo rosso</option>
+            <option value="g">Solo verde</option>
+            <option value="b">Solo blu</option>
+          </select>
+        </div>
+        <label class="check"><input type="checkbox" id="linear" checked> Correggi la gamma (sRGB → lineare)</label>
+        <div class="field"><label for="avg">Media temporale <span class="val" id="avgVal">8 frame</span></label>
+          <input type="range" id="avg" min="1" max="40" step="1" value="8">
+        </div>
+        <p class="note">Se una regione satura anche al tempo di esposizione minimo, prova un canale singolo: a 780 nm i tre canali hanno sensibilità diverse e quello più debole fa da attenuatore.</p>
+      </div>
+    </details>
+
+    <details id="camPanel">
+      <summary>Camera</summary>
+      <div class="in" id="camIn">
+        <p class="note" id="camNote">Avvia la camera per vedere i controlli di esposizione, fuoco e zoom.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Come si usa</summary>
+      <div class="in">
+        <ol>
+          <li>Proietta gli ordini su un cartoncino bianco opaco e inquadra il cartoncino. Non mandare mai il fascio dentro la fotocamera.</li>
+          <li>Fissa il telefono (treppiede o morsetto) e premi Avvia camera.</li>
+          <li>In Camera attiva l'esposizione manuale e accorcia il tempo finché nessuna regione mostra SAT. Blocca anche fuoco e bilanciamento del bianco.</li>
+          <li>Premi Trova spot. Seleziona il fascio non diffratto e premi «Questo è l'ordine 0»; se serve, Inverti segni.</li>
+          <li>Regola angolo di Bragg e potenza RF guardando l'efficienza, oppure attiva il Tono: più è acuto, più è alta.</li>
+        </ol>
+        <p class="note">La risposta della fotocamera non è garantita lineare. Prima di fidarti dei valori assoluti, confrontali una volta con un power meter o con un filtro di attenuazione nota.</p>
+      </div>
+    </details>
+  </div>
+</main>
+
+<script id="core">
+// ---------- funzioni pure di misura (testabili fuori dal browser) ----------
+const LUT_RAW = new Float32Array(256), LUT_LIN = new Float32Array(256);
+for (let i = 0; i < 256; i++) {
+  const c = i / 255;
+  LUT_RAW[i] = c;
+  LUT_LIN[i] = c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+const R_IN = 1.3, R_OUT = 1.8, SAT_LEVEL = 250;
+let _bgBuf = new Float32Array(1024);
+
+// d: RGBA del riquadro (w×h); cx,cy,r in pixel del riquadro.
+// Ritorna segnale integrato nel disco meno il fondo (mediana dell'anello).
+function measureROI(d, w, h, cx, cy, r, channel, lut) {
+  const r2 = r * r, ri2 = (r * R_IN) ** 2, ro2 = (r * R_OUT) ** 2;
+  if (_bgBuf.length < w * h) _bgBuf = new Float32Array(w * h);
+  let sum = 0, n = 0, sat = 0, nb = 0;
+  for (let y = 0; y < h; y++) {
+    const dy = y - cy, dy2 = dy * dy;
+    for (let x = 0; x < w; x++) {
+      const dx = x - cx, d2 = dx * dx + dy2;
+      if (d2 > ro2 || (d2 > r2 && d2 < ri2)) continue;
+      const j = (y * w + x) * 4;
+      let v, raw;
+      if (channel === 'r') { raw = d[j]; v = lut[raw]; }
+      else if (channel === 'g') { raw = d[j + 1]; v = lut[raw]; }
+      else if (channel === 'b') { raw = d[j + 2]; v = lut[raw]; }
+      else {
+        const a = d[j], b = d[j + 1], c = d[j + 2];
+        raw = a > b ? (a > c ? a : c) : (b > c ? b : c);
+        v = (lut[a] + lut[b] + lut[c]) / 3;
+      }
+      if (d2 <= r2) { sum += v; n++; if (raw >= SAT_LEVEL) sat++; }
+      else _bgBuf[nb++] = v;
+    }
+  }
+  let bg = 0;
+  if (nb > 0) { const s = _bgBuf.subarray(0, nb).sort(); bg = s[nb >> 1]; }
+  return { signal: sum - n * bg, n, sat, bg };
+}
+
+// Trova le macchie luminose in un'immagine ridotta. Ritorna [{cx,cy,ext,sum}] dalla più intensa.
+function detectSpots(d, dw, dh, channel) {
+  const n = dw * dh, v = new Uint8Array(n), hist = new Uint32Array(256);
+  let mx = 0;
+  for (let i = 0, j = 0; i < n; i++, j += 4) {
+    const val = channel === 'r' ? d[j] : channel === 'g' ? d[j + 1] : channel === 'b' ? d[j + 2]
+      : Math.round((d[j] + d[j + 1] + d[j + 2]) / 3);
+    v[i] = val; hist[val]++; if (val > mx) mx = val;
+  }
+  let acc = 0, bg = 0;
+  for (; bg < 256; bg++) { acc += hist[bg]; if (acc >= n / 2) break; }
+  if (mx - bg < 12) return [];
+  const thr = bg + Math.max(10, 0.1 * (mx - bg));
+  const seen = new Uint8Array(n), stack = new Int32Array(n), comps = [];
+  for (let s = 0; s < n; s++) {
+    if (seen[s] || v[s] < thr) continue;
+    let top = 0; stack[top++] = s; seen[s] = 1;
+    let area = 0, sum = 0, sx = 0, sy = 0, minx = dw, maxx = 0, miny = dh, maxy = 0;
+    while (top) {
+      const p = stack[--top], x = p % dw, y = (p - x) / dw, wv = v[p] - bg;
+      area++; sum += wv; sx += wv * x; sy += wv * y;
+      if (x < minx) minx = x; if (x > maxx) maxx = x; if (y < miny) miny = y; if (y > maxy) maxy = y;
+      for (let yy = y - 1; yy <= y + 1; yy++) {
+        if (yy < 0 || yy >= dh) continue;
+        for (let xx = x - 1; xx <= x + 1; xx++) {
+          if (xx < 0 || xx >= dw) continue;
+          const q = yy * dw + xx;
+          if (!seen[q] && v[q] >= thr) { seen[q] = 1; stack[top++] = q; }
+        }
+      }
+    }
+    if (area >= 3) comps.push({ cx: sx / sum, cy: sy / sum, ext: Math.max(maxx - minx, maxy - miny) + 1, sum });
+  }
+  comps.sort((a, b) => b.sum - a.sum);
+  return comps.slice(0, 7);
+}
+
+// pts[0] è il riferimento (ordine 0). Numera gli altri lungo la retta degli spot.
+function assignOrders(pts) {
+  const n = pts.length;
+  if (n === 0) return [];
+  if (n === 1) return [0];
+  let best = 0, ux = 1, uy = 0;
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) {
+    const dx = pts[j].x - pts[i].x, dy = pts[j].y - pts[i].y, dd = Math.hypot(dx, dy);
+    if (dd > best) { best = dd; ux = dx / dd; uy = dy / dd; }
+  }
+  if (ux < 0 || (Math.abs(ux) < 1e-6 && uy < 0)) { ux = -ux; uy = -uy; }
+  const pr = pts.map(p => (p.x - pts[0].x) * ux + (p.y - pts[0].y) * uy);
+  const s = [...pr].sort((a, b) => a - b);
+  let unit = Infinity;
+  for (let k = 1; k < n; k++) { const g = s[k] - s[k - 1]; if (g > 1e-6 && g < unit) unit = g; }
+  return pr.map(p => Math.max(-5, Math.min(5, Math.round(p / unit))) || 0);
+}
+</script>
+
+<script>
+(() => {
+const $ = id => document.getElementById(id);
+const view = $('view'), ctx = view.getContext('2d', { willReadFrequently: true });
+const video = document.createElement('video');
+video.playsInline = true; video.muted = true;
+const demo = document.createElement('canvas'); demo.width = 960; demo.height = 540;
+const dg = demo.getContext('2d');
+const small = document.createElement('canvas'), sg = small.getContext('2d', { willReadFrequently: true });
+
+const C = { accent: '#ffb347', other: '#7fb2ff', zero: '#e7ecf3', sat: '#ff5c5c', muted: '#8a96a6', line: '#28303b' };
+const st = { rois: [], sel: -1, adding: false, channel: 'sum', linear: true, alpha: 2 / 9, target: 1, peak: 0, hist: [] };
+let stream = null, track = null, usingCamera = false, demoSeeded = false, wakeLock = null;
+let lastProc = 0, lastRead = 0, lastSig = null, drag = null;
+
+const fmtOrder = o => o > 0 ? '+' + o : o < 0 ? '−' + (-o) : '0';
+const source = () => usingCamera ? video : demo;
+const resetAvg = () => { st.rois.forEach(r => r.p = null); };
+
+// ---------- sorgente demo ----------
+function drawDemo(t) {
+  dg.globalCompositeOperation = 'source-over';
+  dg.fillStyle = '#060607'; dg.fillRect(0, 0, demo.width, demo.height);
+  const e = 0.45 + 0.35 * Math.sin(t / 2600);
+  const spots = [[-1, 0.04], [0, 1 - e - 0.04], [1, e]];
+  dg.globalCompositeOperation = 'lighter';
+  for (const [o, I] of spots) {
+    const x = 480 + o * 170, y = 270 + o * 20, rad = 36;
+    const a = 0.9 * Math.pow(I, 1 / 2.2);
+    const g = dg.createRadialGradient(x, y, 0, x, y, rad);
+    g.addColorStop(0, `rgba(255,205,235,${a})`);
+    g.addColorStop(0.35, `rgba(255,205,235,${a * 0.6})`);
+    g.addColorStop(0.7, `rgba(255,205,235,${a * 0.15})`);
+    g.addColorStop(1, 'rgba(255,205,235,0)');
+    dg.fillStyle = g; dg.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+  }
+  dg.globalCompositeOperation = 'source-over';
+}
+
+// ---------- ciclo principale ----------
+function frame(now) {
+  requestAnimationFrame(frame);
+  if (now - lastProc < 30) return;
+  lastProc = now;
+  let w, h;
+  if (usingCamera) { w = video.videoWidth; h = video.videoHeight; if (!w) return; }
+  else { w = demo.width; h = demo.height; drawDemo(now); }
+  if (view.width !== w || view.height !== h) {
+    const fx = w / view.width, fy = h / view.height;
+    st.rois.forEach(r => { r.x *= fx; r.y *= fy; r.r *= Math.min(fx, fy); r.p = null; });
+    view.width = w; view.height = h;
+  }
+  ctx.drawImage(source(), 0, 0, w, h);
+  if (!usingCamera && !demoSeeded) { demoSeeded = true; detect(true); }
+  measureAll(w, h);
+  drawOverlay(w, h);
+  if (now - lastRead > 120) { lastRead = now; updateReadout(); }
+}
+
+function measureAll(w, h) {
+  const lut = st.linear ? LUT_LIN : LUT_RAW;
+  for (const r of st.rois) {
+    const R = Math.ceil(r.r * R_OUT) + 1;
+    const x0 = Math.max(0, Math.floor(r.x - R)), y0 = Math.max(0, Math.floor(r.y - R));
+    const x1 = Math.min(w, Math.ceil(r.x + R)), y1 = Math.min(h, Math.ceil(r.y + R));
+    if (x1 - x0 < 2 || y1 - y0 < 2) { r.p = 0; r.sat = 0; continue; }
+    const img = ctx.getImageData(x0, y0, x1 - x0, y1 - y0);
+    const m = measureROI(img.data, x1 - x0, y1 - y0, r.x - x0, r.y - y0, r.r, st.channel, lut);
+    const inst = Math.max(0, m.signal);
+    r.p = r.p == null ? inst : r.p + st.alpha * (inst - r.p);
+    r.sat = m.sat;
+  }
+}
+
+function drawOverlay(w, h) {
+  const s = w / (view.clientWidth || w);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  ctx.font = `600 ${14 * s}px ui-monospace,Menlo,Consolas,monospace`;
+  st.rois.forEach((r, i) => {
+    const col = r.sat >= 3 ? C.sat : r.order === st.target ? C.accent : r.order === 0 ? C.zero : C.other;
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.setLineDash([4 * s, 5 * s]); ctx.lineWidth = 1 * s; ctx.globalAlpha = 0.45;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r * R_OUT, 0, 6.2832); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1; ctx.lineWidth = (i === st.sel ? 3.5 : 2) * s;
+    ctx.beginPath(); ctx.arc(r.x, r.y, r.r, 0, 6.2832); ctx.stroke();
+    ctx.fillText(fmtOrder(r.order) + (r.sat >= 3 ? ' SAT' : ''), r.x, Math.max(16 * s, r.y - r.r * R_OUT - 4 * s));
+  });
+  if (!usingCamera) {
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillStyle = C.muted;
+    ctx.font = `600 ${12 * s}px ui-monospace,Menlo,Consolas,monospace`;
+    ctx.fillText('DEMO SIMULATA', 12 * s, 10 * s);
+  }
+}
+
+// ---------- lettura ----------
+function rebuildRows() {
+  const rows = $('rows'); rows.textContent = '';
+  const sorted = [...st.rois].sort((a, b) => a.order - b.order);
+  if (!sorted.length) {
+    const p = document.createElement('p'); p.className = 'msg';
+    p.textContent = 'Nessuna regione. Premi Trova spot, oppure Aggiungi regione e tocca uno spot.';
+    rows.appendChild(p);
+  }
+  for (const r of sorted) {
+    const row = document.createElement('div'); row.className = 'row' + (r.order === st.target ? ' t' : '');
+    const ord = document.createElement('span'); ord.className = 'ord'; ord.textContent = fmtOrder(r.order);
+    const tr = document.createElement('div'); tr.className = 'track'; const bar = document.createElement('i'); tr.appendChild(bar);
+    const pct = document.createElement('span'); pct.className = 'pct';
+    const chip = document.createElement('span'); chip.className = 'chip sat'; chip.textContent = 'SAT';
+    row.append(ord, tr, pct, chip); rows.appendChild(row);
+    r._ui = { bar, pct, chip };
+  }
+  const sel = $('target'); sel.textContent = '';
+  const orders = [...new Set(st.rois.map(r => r.order))].sort((a, b) => a - b);
+  if (!orders.includes(st.target)) orders.push(st.target);
+  for (const o of orders) {
+    const op = document.createElement('option'); op.value = o; op.textContent = fmtOrder(o);
+    if (o === st.target) op.selected = true; sel.appendChild(op);
+  }
+}
+
+function updateReadout() {
+  const sig = st.rois.map(r => r.order).join(',') + '|' + st.target;
+  if (sig !== lastSig) { lastSig = sig; rebuildRows(); }
+  const total = st.rois.reduce((a, r) => a + (r.p || 0), 0), valid = total > 0.2;
+  let tp = 0; const satOrders = [];
+  for (const r of st.rois) {
+    const f = valid ? (r.p || 0) / total : 0;
+    if (r.order === st.target) tp += f;
+    if (r.sat >= 3) satOrders.push(fmtOrder(r.order));
+    if (r._ui) {
+      r._ui.bar.style.width = (f * 100).toFixed(1) + '%';
+      r._ui.pct.textContent = valid ? (f * 100).toFixed(1) + ' %' : '—';
+      r._ui.chip.classList.toggle('on', r.sat >= 3);
+    }
+  }
+  const has = valid && st.rois.some(r => r.order === st.target);
+  $('eff').firstChild.nodeValue = has ? (tp * 100).toFixed(1) : '—';
+  if (has && tp > st.peak) st.peak = tp;
+  $('peak').textContent = st.peak > 0 ? (st.peak * 100).toFixed(1) + ' %' : '—';
+  st.hist.push(has ? tp : 0); if (st.hist.length > 240) st.hist.shift();
+  $('satMsg').textContent = satOrders.length
+    ? `Saturazione nell'ordine ${satOrders.join(', ')}: riduci il tempo di esposizione o cambia canale. Il valore è sottostimato.` : '';
+  drawSpark();
+  if (tone.on) tone.osc.frequency.setTargetAtTime(220 * Math.pow(2, (has ? tp : 0) * 3), tone.ac.currentTime, 0.05);
+}
+
+function drawSpark() {
+  const c = $('spark'), dpr = window.devicePixelRatio || 1;
+  const W = Math.round(c.clientWidth * dpr), H = Math.round(c.clientHeight * dpr);
+  if (!W) return;
+  if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
+  const g = c.getContext('2d'); g.clearRect(0, 0, W, H);
+  const pad = 3 * dpr, y = v => H - pad - v * (H - 2 * pad), n = st.hist.length;
+  g.strokeStyle = C.line; g.lineWidth = dpr;
+  for (const v of [0, 0.5, 1]) { g.beginPath(); g.moveTo(0, y(v)); g.lineTo(W, y(v)); g.stroke(); }
+  if (n < 2) return;
+  const x = i => W - 6 * dpr - (n - 1 - i) * ((W - 6 * dpr) / 239);
+  if (st.peak > 0) { g.setLineDash([3 * dpr, 4 * dpr]); g.strokeStyle = C.muted; g.beginPath(); g.moveTo(0, y(st.peak)); g.lineTo(W, y(st.peak)); g.stroke(); g.setLineDash([]); }
+  g.beginPath(); g.moveTo(x(0), y(st.hist[0]));
+  for (let i = 1; i < n; i++) g.lineTo(x(i), y(st.hist[i]));
+  g.strokeStyle = C.accent; g.lineWidth = 2 * dpr; g.stroke();
+  g.lineTo(x(n - 1), y(0)); g.lineTo(x(0), y(0)); g.closePath();
+  g.fillStyle = 'rgba(255,179,71,.14)'; g.fill();
+  g.beginPath(); g.arc(x(n - 1), y(st.hist[n - 1]), 3.5 * dpr, 0, 6.2832); g.fillStyle = C.accent; g.fill();
+}
+
+// ---------- regioni ----------
+function detect(silent) {
+  const w = view.width, h = view.height, sc = Math.min(1, 320 / w);
+  const dw = Math.max(1, Math.round(w * sc)), dh = Math.max(1, Math.round(h * sc));
+  small.width = dw; small.height = dh; sg.drawImage(source(), 0, 0, dw, dh);
+  const comps = detectSpots(sg.getImageData(0, 0, dw, dh).data, dw, dh, st.channel);
+  if (!comps.length) { if (!silent) say('Nessuno spot trovato: aumenta l\'esposizione o aggiungi le regioni a mano.'); return; }
+  const pts = comps.map(c => ({ x: (c.cx + 0.5) / sc, y: (c.cy + 0.5) / sc, r: Math.max(6, (c.ext / 2 + 1) * 1.6 / sc) }));
+  pts.forEach((p, i) => {
+    let dmin = Infinity;
+    pts.forEach((q, j) => { if (i !== j) dmin = Math.min(dmin, Math.hypot(p.x - q.x, p.y - q.y)); });
+    if (isFinite(dmin)) p.r = Math.max(6, Math.min(p.r, 0.42 * dmin));
+  });
+  const ord = assignOrders(pts);
+  st.rois = pts.map((p, i) => ({ x: p.x, y: p.y, r: p.r, order: ord[i], p: null, sat: 0 }));
+  st.sel = -1; showEditor();
+  if (!silent) say(`Trovati ${pts.length} spot. Il più intenso è stato marcato come ordine 0: correggi se non è così.`);
+}
+
+function say(t) { $('stageMsg').textContent = t; }
+function toCanvas(e) {
+  const b = view.getBoundingClientRect();
+  return { x: (e.clientX - b.left) * view.width / b.width, y: (e.clientY - b.top) * view.height / b.height };
+}
+function showEditor() {
+  const r = st.rois[st.sel];
+  $('editor').classList.toggle('show', !!r);
+  if (!r) return;
+  $('edOrder').textContent = fmtOrder(r.order);
+  const er = $('edRadius'); er.max = Math.round(Math.min(view.width, view.height) / 3); er.value = Math.round(r.r);
+}
+
+view.addEventListener('pointerdown', e => {
+  const p = toCanvas(e), s = view.width / (view.clientWidth || view.width);
+  if (st.adding) {
+    const used = st.rois.map(r => r.order);
+    const order = used.includes(0) ? Math.min(5, Math.max(...used) + 1) : 0;
+    st.rois.push({ x: p.x, y: p.y, r: Math.min(view.width, view.height) * 0.05, order, p: null, sat: 0 });
+    st.sel = st.rois.length - 1; st.adding = false; $('btnAdd').classList.remove('on');
+    say('Regione aggiunta. Trascinala sullo spot e regola raggio e ordine.');
+  } else {
+    let hit = -1, best = Infinity;
+    st.rois.forEach((r, i) => { const d = Math.hypot(p.x - r.x, p.y - r.y); if (d < Math.max(r.r, 28 * s) && d < best) { best = d; hit = i; } });
+    st.sel = hit;
+  }
+  if (st.sel >= 0) { const r = st.rois[st.sel]; drag = { dx: p.x - r.x, dy: p.y - r.y }; try { view.setPointerCapture(e.pointerId); } catch {} }
+  showEditor(); e.preventDefault();
+});
+view.addEventListener('pointermove', e => {
+  if (!drag || st.sel < 0) return;
+  const p = toCanvas(e), r = st.rois[st.sel];
+  r.x = Math.max(0, Math.min(view.width, p.x - drag.dx)); r.y = Math.max(0, Math.min(view.height, p.y - drag.dy));
+});
+const endDrag = () => { drag = null; };
+view.addEventListener('pointerup', endDrag); view.addEventListener('pointercancel', endDrag);
+
+$('btnDetect').onclick = () => detect(false);
+$('btnAdd').onclick = () => { st.adding = !st.adding; $('btnAdd').classList.toggle('on', st.adding); say(st.adding ? 'Tocca lo spot sull\'immagine.' : 'Tocca una regione per selezionarla, trascinala per spostarla.'); };
+$('btnFlip').onclick = () => { st.rois.forEach(r => r.order = -r.order || 0); showEditor(); };
+$('btnClear').onclick = () => { st.rois = []; st.sel = -1; showEditor(); };
+$('edMinus').onclick = () => { const r = st.rois[st.sel]; if (r) { r.order = Math.max(-5, r.order - 1); showEditor(); } };
+$('edPlus').onclick = () => { const r = st.rois[st.sel]; if (r) { r.order = Math.min(5, r.order + 1); showEditor(); } };
+$('edRadius').oninput = e => { const r = st.rois[st.sel]; if (r) { r.r = +e.target.value; r.p = null; } };
+$('edZero').onclick = () => { const r = st.rois[st.sel]; if (r) { const o = r.order; st.rois.forEach(q => q.order -= o); showEditor(); } };
+$('edDel').onclick = () => { if (st.sel >= 0) { st.rois.splice(st.sel, 1); st.sel = -1; showEditor(); } };
+
+$('target').onchange = e => { st.target = +e.target.value; st.peak = 0; st.hist = []; };
+$('btnPeak').onclick = () => { st.peak = 0; };
+$('channel').onchange = e => { st.channel = e.target.value; resetAvg(); };
+$('linear').onchange = e => { st.linear = e.target.checked; resetAvg(); };
+$('avg').oninput = e => { const n = +e.target.value; st.alpha = 2 / (n + 1); $('avgVal').textContent = n + ' frame'; };
+
+// ---------- tono ----------
+const tone = { on: false, ac: null, osc: null, gain: null };
+$('btnTone').onclick = () => {
+  try {
+    if (!tone.ac) {
+      tone.ac = new (window.AudioContext || window.webkitAudioContext)();
+      tone.osc = tone.ac.createOscillator(); tone.gain = tone.ac.createGain(); tone.gain.gain.value = 0;
+      tone.osc.connect(tone.gain); tone.gain.connect(tone.ac.destination); tone.osc.start();
+    }
+    tone.ac.resume(); tone.on = !tone.on;
+    tone.gain.gain.setTargetAtTime(tone.on ? 0.07 : 0, tone.ac.currentTime, 0.02);
+    $('btnTone').classList.toggle('on', tone.on);
+  } catch { say('Audio non disponibile in questo browser.'); }
+};
+
+// ---------- camera ----------
+async function keepAwake() { try { if (navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen'); } catch {} }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && usingCamera) keepAwake(); });
+
+function stopCamera() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null; track = null; usingCamera = false; video.srcObject = null;
+  try { wakeLock && wakeLock.release(); } catch {} wakeLock = null;
+}
+function toDemo() {
+  stopCamera(); st.rois = []; st.sel = -1; demoSeeded = false; st.peak = 0; st.hist = []; showEditor();
+  $('srcChip').textContent = 'Demo simulata'; $('srcChip').classList.remove('live');
+  $('btnCam').textContent = 'Avvia camera'; $('btnCam').classList.add('primary');
+  $('camIn').textContent = ''; const p = document.createElement('p'); p.className = 'note';
+  p.textContent = 'Avvia la camera per vedere i controlli di esposizione, fuoco e zoom.'; $('camIn').appendChild(p);
+}
+
+async function startCamera(deviceId) {
+  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    say('La camera funziona solo se la pagina è aperta via https (o localhost) in Chrome.'); return;
+  }
+  stopCamera();
+  const base = { width: { ideal: 1280 }, height: { ideal: 720 } };
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: deviceId ? { ...base, deviceId: { exact: deviceId } } : { ...base, facingMode: { ideal: 'environment' } }
+    });
+  } catch (e) {
+    say(e.name === 'NotAllowedError' ? 'Permesso camera negato. Consentilo nelle impostazioni del sito e riprova.'
+      : e.name === 'NotFoundError' ? 'Nessuna fotocamera trovata.' : 'Impossibile aprire la camera: ' + e.message);
+    toDemo(); return;
+  }
+  track = stream.getVideoTracks()[0];
+  video.srcObject = stream;
+  try { await video.play(); } catch {}
+  usingCamera = true; st.rois = []; st.sel = -1; st.peak = 0; st.hist = []; showEditor();
+  $('srcChip').textContent = 'Camera attiva'; $('srcChip').classList.add('live');
+  $('btnCam').textContent = 'Ferma camera'; $('btnCam').classList.remove('primary');
+  say('Blocca esposizione e fuoco nel pannello Camera, poi premi Trova spot.');
+  keepAwake();
+  await buildCameraControls();
+  $('camPanel').open = true;
+}
+$('btnCam').onclick = () => usingCamera ? toDemo() : startCamera();
+
+const MODES = [['exposureMode', 'Esposizione manuale'], ['focusMode', 'Fuoco manuale'], ['whiteBalanceMode', 'Bilanciamento del bianco manuale']];
+const SLIDERS = [
+  { k: 'exposureTime', label: 'Tempo di esposizione', mode: 'exposureMode', log: true, fmt: v => (v / 10).toFixed(v < 100 ? 1 : 0) + ' ms' },
+  { k: 'iso', label: 'ISO', mode: 'exposureMode', fmt: v => String(Math.round(v)) },
+  { k: 'exposureCompensation', label: 'Compensazione (solo in automatico)', fmt: v => v.toFixed(1) + ' EV' },
+  { k: 'focusDistance', label: 'Distanza di fuoco', mode: 'focusMode', fmt: v => v.toFixed(2) + ' m' },
+  { k: 'colorTemperature', label: 'Temperatura colore', mode: 'whiteBalanceMode', fmt: v => Math.round(v) + ' K' },
+  { k: 'zoom', label: 'Zoom', fmt: v => v.toFixed(1) + '×' }
+];
+let camUI = {}, applying = false, pending = null;
+
+async function applyCam(obj) {
+  if (!track) return;
+  if (applying) { pending = { ...(pending || {}), ...obj }; return; }
+  applying = true;
+  try { await track.applyConstraints({ advanced: [obj] }); $('camErr').textContent = ''; }
+  catch (e) { $('camErr').textContent = 'Impostazione rifiutata dalla camera: ' + (e.message || e.name); }
+  applying = false; resetAvg();
+  if (pending) { const p = pending; pending = null; applyCam(p); }
+}
+
+async function buildCameraControls() {
+  const box = $('camIn'); box.textContent = ''; camUI = {};
+  // scelta fotocamera
+  try {
+    const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'videoinput');
+    if (devs.length > 1) {
+      const f = document.createElement('div'); f.className = 'field';
+      const l = document.createElement('label'); l.htmlFor = 'camSel'; l.textContent = 'Fotocamera';
+      const s = document.createElement('select'); s.id = 'camSel';
+      const cur = track.getSettings().deviceId;
+      devs.forEach((d, i) => { const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || 'Camera ' + (i + 1); if (d.deviceId === cur) o.selected = true; s.appendChild(o); });
+      s.onchange = () => startCamera(s.value);
+      f.append(l, s); box.appendChild(f);
+    }
+  } catch {}
+  const caps = track.getCapabilities ? track.getCapabilities() : {}, set = track.getSettings();
+  let any = false;
+  for (const [k, label] of MODES) {
+    if (!Array.isArray(caps[k]) || !caps[k].includes('manual')) continue;
+    any = true;
+    const l = document.createElement('label'); l.className = 'check';
+    const c = document.createElement('input'); c.type = 'checkbox'; c.id = 'cam-' + k; c.checked = set[k] === 'manual';
+    l.append(c, ' ' + label); box.appendChild(l); camUI[k] = c;
+    c.onchange = async () => {
+      const obj = { [k]: c.checked ? 'manual' : (caps[k].includes('continuous') ? 'continuous' : caps[k][0]) };
+      if (c.checked) { const now = track.getSettings(); for (const d of SLIDERS) if (d.mode === k && now[d.k] != null && caps[d.k]) obj[d.k] = now[d.k]; }
+      await applyCam(obj); setTimeout(syncSliders, 400);
+    };
+  }
+  for (const d of SLIDERS) {
+    const c = caps[d.k];
+    if (!c || typeof c.min !== 'number' || typeof c.max !== 'number' || c.max <= c.min) continue;
+    any = true;
+    const f = document.createElement('div'); f.className = 'field';
+    const l = document.createElement('label'); l.htmlFor = 'cam-' + d.k; l.textContent = d.label + ' ';
+    const v = document.createElement('span'); v.className = 'val'; l.appendChild(v);
+    const r = document.createElement('input'); r.type = 'range'; r.id = 'cam-' + d.k;
+    const useLog = d.log && c.min > 0;
+    if (useLog) { r.min = 0; r.max = 1000; r.step = 1; } else { r.min = c.min; r.max = c.max; r.step = c.step || (c.max - c.min) / 200; }
+    const toVal = () => useLog ? c.min * Math.pow(c.max / c.min, r.value / 1000) : +r.value;
+    const fromVal = x => { r.value = useLog ? 1000 * Math.log(Math.max(c.min, x) / c.min) / Math.log(c.max / c.min) : x; v.textContent = d.fmt(x); };
+    fromVal(set[d.k] != null ? set[d.k] : c.min);
+    r.oninput = () => {
+      const x = toVal(); v.textContent = d.fmt(x);
+      const obj = { [d.k]: x };
+      if (d.mode) {
+        obj[d.mode] = 'manual'; if (camUI[d.mode]) camUI[d.mode].checked = true;
+        for (const o of SLIDERS) if (o !== d && o.mode === d.mode && camUI[o.k]) obj[o.k] = camUI[o.k].get();
+      }
+      applyCam(obj);
+    };
+    f.append(l, r); box.appendChild(f); camUI[d.k] = { get: toVal, set: fromVal };
+  }
+  const err = document.createElement('p'); err.className = 'msg warn'; err.id = 'camErr'; box.appendChild(err);
+  if (!any) {
+    const p = document.createElement('p'); p.className = 'note';
+    p.textContent = 'Questo browser non espone i controlli manuali della camera. La misura funziona lo stesso, ma l\'esposizione automatica può falsare i rapporti: tieni la scena stabile e controlla che non compaia SAT.';
+    box.appendChild(p);
+  }
+}
+function syncSliders() {
+  if (!track) return;
+  const set = track.getSettings();
+  for (const d of SLIDERS) if (camUI[d.k] && set[d.k] != null) camUI[d.k].set(set[d.k]);
+}
+
+rebuildRows();
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
